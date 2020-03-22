@@ -1,4 +1,8 @@
 import random
+import json
+import sys
+import threading as td
+import time
 
 def gcd_and_xy(a, b):
     '''use Euclid Algorithm to cacluate:
@@ -113,47 +117,100 @@ def generate_coding_table():
     return coding_table
 
 def encrypt(message, public_key):
+    '''
+    message: byte array
+    '''
+    global ciphertext
     # sender's private r
     r = random.randint(1, g_p)
 
-    ciphertext = []
-    for ch in message:
-        A = plus(g_coding_table[ord(ch)], mul_k(public_key[1], r))
-        B = mul_k(public_key[0], r)
-        ciphertext.append((A, B))
-    return ciphertext
+    for byt in message:
+        try:
+            A = plus(g_coding_table[byt], mul_k(public_key[1], r))
+            B = mul_k(public_key[0], r)
+            ciphertext.append((A, B))
+        except:
+            print(byt)
 
 def decrypt(ciphertext, private_key):
-    message = ''
+    global message
     for e in ciphertext:
         A, B = e
         M = plus(A, neg(mul_k(B, private_key)))
-        ch = chr(g_coding_table.index(M))
+        byt = g_coding_table.index(M).to_bytes(1, 'little')
 
-        message += ch
+        message += byt
     return message
 
 if __name__ == "__main__":
     #1 domain parameter
     g_a, g_b, g_p = 1, 1, 2**107-1
-    
     # verify
     if (4*g_a**3 + 27*g_b**2)%g_p==0:
         print("(4*a**3 + 27*b**2)%p==0")
         exit(0)
-    
-    #2 gen-key
-    public_key, private_key = generate_key()
-    print("keys:\n",public_key, private_key)
-
-    #3 coding
+    #3 byte to point
     g_coding_table = generate_coding_table()
-    #4 send
-    message = 'hello world'
-    ciphertext = encrypt(message, public_key)
-    print("\nciphertext:\n,",ciphertext)
-    #5 reciever
-    message = decrypt(ciphertext, private_key)
-    print("\nmessage:\n",message)
 
+    menu = '''
+    Menu:
+    1) generate keys
+    2) send message use specific public key (EOF line to finish)
+    3) decode message use specific private key
+    4) quit
+    '''
+    print(menu)
+    while 1:
+        cmd = input('~$')
+        if cmd=='1':
+            print('Use the default Ep(a, b) parameter:\n', g_a, g_b, g_p)
+            #2 gen-key
+            public_key, private_key = generate_key()
+            with open('id_ecc.pub', 'w') as fp:
+                json.dump(public_key, fp)
+            with open('id_ecc', 'w') as fp:
+                json.dump(private_key, fp)
+            print('Save to id_ecc.pub(public key) & id_ecc(private key)')
+        elif cmd=='2':
+            #4 send
+            lines = sys.stdin.readlines()
+            message = ''.join(lines).encode('utf-8')
 
+            with open('id_ecc.pub', 'rb') as fp:
+                public_key = json.load(fp)
+
+            ciphertext = []
+            thread1 = td.Thread(name='encrypt', target=encrypt, args=(message, public_key))
+            thread1.start()
+            cnt = 0
+            while thread1.is_alive():
+                sys.stdout.write("\rencrypting...%d"%(cnt))
+                sys.stdout.flush()
+                time.sleep(1)
+                cnt += 1
+            sys.stdout.write("\r                    \r")
+            
+            with open('ciphertext.json', 'w') as fp:
+                json.dump(ciphertext, fp)
+        elif cmd=='3':
+            #5 reciever
+            with open('id_ecc', 'rb') as fp:
+                private_key = json.load(fp)
+            with open('ciphertext.json', 'rb') as fp:
+                ciphertext = json.load(fp)
+            
+            message = b''
+            thread2 = td.Thread(name='decrypt', target=decrypt, args=(ciphertext, private_key))
+            thread2.start()
+            cnt = 0
+            while thread2.is_alive():
+                sys.stdout.write("\rdecrypting...%d"%(cnt))
+                sys.stdout.flush()
+                time.sleep(1)
+                cnt += 1
+            sys.stdout.write("\r                    \r")
+
+            print(message.decode('utf-8'))
+            print('bytes:\n', message)
+        else:
+            exit(0)
