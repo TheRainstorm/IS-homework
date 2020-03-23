@@ -12,6 +12,8 @@ def gcd_and_xy(a, b):
     x1, y1 = 1, 0
     x2, y2 = 0, 1
 
+    r = b
+    x3, y3 = 0, 1
     while a%b!=0:
         q, r = a//b, a%b
         x3, y3 = x1 - q*x2, y1 - q*y2
@@ -45,9 +47,9 @@ def plus(p1, p2): # P1 + P2
     x1, y1 = p1
     x2, y2 = p2
     if is_infinity(p1):
-        return p2
+        return tuple(p2)
     elif is_infinity(p2):
-        return p1
+        return tuple(p1)
     elif x1==x2 and y1==y2:
         k =(3*x1**2+g_a)*ni(2*y1)%g_p
     elif x1==x2:
@@ -61,7 +63,10 @@ def plus(p1, p2): # P1 + P2
     return (x3, y3)
 
 def neg(p): # -P
-    return (p[0], -p[1])
+    if is_infinity(p):
+        return infinity()
+    
+    return (p[0], g_p - p[1])
 
 def mul_2(p):
     return plus(p, p)
@@ -108,7 +113,7 @@ def generate_coding_table():
     p0 = (0, 1)
     p = (0, 1)
     coding_table.append(p0)
-    for i in range(1, 2**8):
+    for i in range(1, 2**g_bits):
         p = plus(p0, p)
         if is_infinity(p):
             print("Prime p needs to be bigger")
@@ -116,41 +121,76 @@ def generate_coding_table():
         coding_table.append(p)
     return coding_table
 
+def bytes2list(message): # divide bytes array to g_bits array
+	L = []
+	factor = 8//g_bits
+	for byt in message:
+		for i in range(factor):
+			L.append(byt&(2**g_bits-1))
+			byt = byt >> g_bits
+	return L
+
+def list2bytes(L):
+	message = b''
+	factor = 8//g_bits
+	for i in range(len(L)//factor):
+		sum = 0
+		for j in range(factor):
+			sum += L[j+factor*i]<<(j*g_bits)
+		message += sum.to_bytes(1, 'little')
+	return message
+
 def encrypt(message, public_key):
     '''
     message: byte array
     '''
+    L = bytes2list(message)
     global ciphertext
-    # sender's private r
-    r = random.randint(1, g_p)
 
-    for byt in message:
-        try:
-            A = plus(g_coding_table[byt], mul_k(public_key[1], r))
-            B = mul_k(public_key[0], r)
-            ciphertext.append((A, B))
-        except:
-            print(byt)
+    for e in L:
+        # sender's private r
+        r = random.randint(1, g_p)
+        A = plus(g_coding_table[e], mul_k(public_key[1], r))
+        B = mul_k(public_key[0], r)
+        ciphertext.append((A, B))
 
 def decrypt(ciphertext, private_key):
     global message
+    L = []
     for e in ciphertext:
         A, B = e
         M = plus(A, neg(mul_k(B, private_key)))
-        byt = g_coding_table.index(M).to_bytes(1, 'little')
+        bits = g_coding_table.index(M)
 
-        message += byt
-    return message
+        L.append(bits)
+    message = list2bytes(L)
 
 if __name__ == "__main__":
     #1 domain parameter
-    g_a, g_b, g_p = 1, 1, 2**107-1
+    g_a, g_b, g_p = 1, 1, 19
+    # print_all_points()
+    # code x bits to one point
+    g_bits = 1
     # verify
     if (4*g_a**3 + 27*g_b**2)%g_p==0:
         print("(4*a**3 + 27*b**2)%p==0")
         exit(0)
-    #3 byte to point
+    #3 x bits to a point
     g_coding_table = generate_coding_table()
+    # print(g_coding_table)
+
+    # P = (0, 1)
+    # G = mul_k(P, 17)
+    # print(P, G)
+    # M = mul_k(P, 7)
+    # print(M)
+    # A = plus(M, mul_k(G, 14))
+    # B = mul_k(P, 14)
+    # print(mul_k(G, 14))
+    # print(A, B)
+    # M = plus(A, neg(mul_k(B, 17)))
+    # print(mul_k(B, 17))
+    # print(M)
 
     menu = '''
     Menu:
