@@ -167,10 +167,10 @@ def decrypt(ciphertext, private_key):
 
 if __name__ == "__main__":
     #1 domain parameter
-    g_a, g_b, g_p = 1, 1, 19
+    g_a, g_b, g_p = 1, 1, 2**107-1
     # print_all_points()
     # code x bits to one point
-    g_bits = 1
+    g_bits = 8
     # verify
     if (4*g_a**3 + 27*g_b**2)%g_p==0:
         print("(4*a**3 + 27*b**2)%p==0")
@@ -179,6 +179,7 @@ if __name__ == "__main__":
     g_coding_table = generate_coding_table()
     # print(g_coding_table)
 
+    # example:
     # P = (0, 1)
     # G = mul_k(P, 17)
     # print(P, G)
